@@ -1,59 +1,62 @@
-// page 1
-// limit 10
-// take = page * limit
-
 import { createClient } from "redis";
-import express from "express";
+import express, {
+  type NextFunction,
+  type Request,
+  type Response,
+} from "express";
 
 const app = express();
 const PORT = 3000;
 app.use(express.json());
 
-type redisClient = ReturnType<typeof createClient>;
-
-const client = createClient();
-await client.connect();
-
-await insertUsers(client);
-
-app.get("/", async (req, res) => {
-  const { page, limit } = req.query as { page: string | undefined, limit: string | undefined };
-
-  if(!page || !limit) {
-    return res.status(404).json({
-      message: "required ?page=number&limit=number"
-    })
-  }
-
-  const start = Number(page) * Number(limit);
-  const end = start + Number(limit) - 1; 
-
-  const users = await client.zRangeWithScores("users", start, end, {
-    REV: true,
-  });
-
-  return res.status(200).json({
-    users
-  });
+app.get("/", rateLimiter(5, 60), (req, res) => {
+  res.send("hello");
 });
 
-async function insertUsers(client: redisClient) {
-  let users: { score: number; value: string }[] = [];
+type redisClient = ReturnType<typeof createClient>;
 
-  const members = await client.zRange("users", 0, -1, {
-    REV: true,
-  });
-
-  if (members.length === 0) {
-    for (let i = 0; i < 100; i++) {
-      users.push({
-        score: Math.floor(Math.random() * 100),
-        value: crypto.randomUUID(),
-      });
-    }
-
-    await client.zAdd("users", users);
-  }
-}
+// const client = createClient().connect();
 
 app.listen(PORT, () => console.log("code is running at ", PORT));
+
+// user ip and number of re
+const counter: Map<string, number> = new Map();
+// user ip and req time
+const timeFrame: Map<string, number> = new Map();
+
+function rateLimiter(numOfReq: number, timeframeInSec: number) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const ip = req.ip?.split("::ffff:")[1] ?? "11";
+
+    if (!timeFrame.has(ip)) {
+      const now = Date.now();
+      timeFrame.set(ip, now + timeframeInSec * 1000);
+    }
+
+    if (counter.has(ip)) {
+      const timeLimit = timeFrame.get(ip)!; // 03: 00
+      const latestReqTime = Date.now(); // 03: 01
+      console.log(latestReqTime >= timeLimit);
+
+      if (latestReqTime >= timeLimit) {
+        counter.set(ip, 1);
+        const now = Date.now();
+        timeFrame.set(ip, now + timeframeInSec * 1000);
+        next();
+      }
+
+      const count = counter.get(ip)!;
+      if (count >= numOfReq) {
+        return res.status(429).json({
+          message: "too many requests",
+        });
+      }
+      const newNum = count + 1;
+      counter.set(ip, newNum);
+      next();
+      return;
+    }
+    counter.set(ip, 1);
+    next();
+  };
+}
