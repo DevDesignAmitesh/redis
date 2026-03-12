@@ -21,7 +21,7 @@ app.get("/", async (req, res) => {
 
   if(!page || !limit) {
     return res.status(404).json({
-      message: "not found"
+      message: "required ?page=number&limit=number"
     })
   }
 
