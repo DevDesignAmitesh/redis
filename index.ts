@@ -1,79 +1,51 @@
 import { createClient } from "redis";
+import express from "express";
 
-try {
-  const client = await createClient().connect();
+const app = express();
+const PORT = 3000;
+app.use(express.json());
 
-  // await client.zAdd("set", [
-  //   {
-  //     score: 20,
-  //     value: "a",
-  //   },
-  //   {
-  //     score: 5,
-  //     value: "b",
-  //   },
-  //   {
-  //     score: 10,
-  //     value: "c",
-  //   },
-  // ]);
+type redisClient = ReturnType<typeof createClient>;
 
-  // const res = await client.zRange("set", 0, -1, {
-  //   REV: true
-  // });
+const client = createClient();
+await client.connect();
 
-  // await client.zIncrBy("set", 40, res[2]!)
+await insertUsers(client);
 
-  // const res2 = await client.zRangeWithScores("set", 0, -1, {
-  //   REV: true
-  // });
+app.get("/", async (req, res) => {
+  const { userId } = req.query as { userId: string | undefined };
+  console.log("userId ", userId);
 
-  // console.log(res2)
+  const [top10, me] = await Promise.all([
+    client.zRangeWithScores("users", 0, -1, {
+      REV: true,
+    }),
+    client.zRankWithScore("users", userId ?? ""),
+  ]);
 
-  const start = Date.now();
-  const inMemProd = JSON.parse(await client.get("products") ?? "[]") as Product[];
-  let products: Product[] = []
-  console.log("inMemProd", inMemProd.length)
-  
-  if(inMemProd.length === 0) {
-    products = await fetchFromDb()
-    console.log("db prod", products.length)
-    await client.set("products", JSON.stringify(products), {
-    })
-    await client.expire("products", 60)
-  } else {
-    products = inMemProd
+  return res.status(200).json({
+    top10,
+    me,
+  });
+});
+
+async function insertUsers(client: redisClient) {
+  let users: { score: number; value: string }[] = [];
+
+  const memebers = await client.zRange("users", 0, -1, {
+    REV: true,
+  });
+
+  if (memebers.length === 0) {
+    for (let i = 0; i < 100; i++) {
+      users.push({
+        score: Math.floor(Math.random() * 100),
+        value: crypto.randomUUID(),
+      });
+    }
+
+    client.zAdd("users", users);
   }
-
-  
-  const end = Date.now();
-  console.log(products)
-  console.log("final prod", products)
-  console.log("end ", end - start);
-} catch (e) {
-  console.log("error ", e);
 }
 
-interface Product {
-  id: string;
-  name: string;
-}
-
-async function fetchFromDb() {
-  return new Promise<Product[]>((res, rej) =>
-    setTimeout(
-      () =>
-        res([
-          {
-            id: crypto.randomUUID(),
-            name: "shirts",
-          },
-          {
-            id: crypto.randomUUID(),
-            name: "pants",
-          },
-        ]),
-      3000,
-    ),
-  );
-}
+app.listen(PORT, () => console.log("code is running at ", PORT));

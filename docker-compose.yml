@@ -3,15 +3,10 @@ services:
     image: redis
     ports:
       - 6379:6379
+    restart: always
 
 # naked command
 # docker run -p 6379:6379 -d redis
 
 # for interacting with it
 # docker exec -it <id> redis-cli
-
-# poject idea 
-# building a decent leader board thing
-# which will cache the data for some specific range
-# and will be send data on scrolling from backend
-# and will use the range thing for pagination
