@@ -1,3 +1,7 @@
+// page 1
+// limit 10
+// take = page * limit
+
 import { createClient } from "redis";
 import express from "express";
 
@@ -13,30 +17,34 @@ await client.connect();
 await insertUsers(client);
 
 app.get("/", async (req, res) => {
-  const { userId } = req.query as { userId: string | undefined };
-  console.log("userId ", userId);
+  const { page, limit } = req.query as { page: string | undefined, limit: string | undefined };
 
-  const [top10, me] = await Promise.all([
-    client.zRangeWithScores("users", 0, -1, {
-      REV: true,
-    }),
-    client.zRankWithScore("users", userId ?? ""),
-  ]);
+  if(!page || !limit) {
+    return res.status(404).json({
+      message: "not found"
+    })
+  }
+
+  const start = Number(page) * Number(limit);
+  const end = start + Number(limit) - 1; 
+
+  const users = await client.zRangeWithScores("users", start, end, {
+    REV: true,
+  });
 
   return res.status(200).json({
-    top10,
-    me,
+    users
   });
 });
 
 async function insertUsers(client: redisClient) {
   let users: { score: number; value: string }[] = [];
 
-  const memebers = await client.zRange("users", 0, -1, {
+  const members = await client.zRange("users", 0, -1, {
     REV: true,
   });
 
-  if (memebers.length === 0) {
+  if (members.length === 0) {
     for (let i = 0; i < 100; i++) {
       users.push({
         score: Math.floor(Math.random() * 100),
@@ -44,7 +52,7 @@ async function insertUsers(client: redisClient) {
       });
     }
 
-    client.zAdd("users", users);
+    await client.zAdd("users", users);
   }
 }
 
