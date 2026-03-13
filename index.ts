@@ -1,12 +1,12 @@
 import { createClient } from "redis";
 import express from "express";
-import { slidingWindowLogRateLimiter } from "./sliding-window-log-ratelimiter";
+import { tokenBucketRatelimiter } from "./token-bucket";
 
 const app = express();
 const PORT = 3000;
 app.use(express.json());
 
-app.get("/", slidingWindowLogRateLimiter(5, 10), (req, res) => {
+app.get("/", tokenBucketRatelimiter(), (req, res) => {
   res.send("hello");
 });
 
