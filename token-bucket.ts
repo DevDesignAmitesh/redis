@@ -1,29 +1,30 @@
+// each user based
+
 import type { NextFunction, Request, Response } from "express";
 
-const MAX_CAPACITY = 5;
-let bucket = 0;
+const INIT_TOKENS = 10;
+const CAPACITY = 10;
+const REFILL_RATE = 2;
 
-function refiller() {
-  setInterval(() => {
-    if (bucket >= MAX_CAPACITY) return;
-    bucket += 3;
-    console.log("bucket after adding adding ", bucket);
-  }, 5 * 1000);
-}
-
-refiller();
+const users: Map<string, { lastRefillTimestamp: number; token: number }> =
+  new Map();
 
 export function tokenBucketRatelimiter() {
   return (req: Request, res: Response, next: NextFunction) => {
-    console.log("bucket while req ", bucket);
-    if (bucket === 0) {
-      return res.status(429).json({
-        message: "too many request",
-      });
+    const ip = req.ip?.split("::ffff:")[1] ?? "11";
+
+    if (!users.has(ip)) {
+      users.set(ip, { token: INIT_TOKENS, lastRefillTimestamp: Date.now() });
     }
 
-    bucket -= 1;
-    console.log("bucket after minus ", bucket);
-    next();
+    const user = users.get(ip)!;
+
+    if (user.token === 0) {
+      users.set(ip, { token: INIT_TOKENS, lastRefillTimestamp: Date.now() });
+    }
+
+    const now = Date.now();
+    const elapsed = now - user.lastRefillTimestamp;
+    const tokenToAdd = elapsed * REFILL_RATE;
   };
 }
