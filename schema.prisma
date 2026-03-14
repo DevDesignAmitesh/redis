@@ -1,0 +1,11 @@
+model Todo {
+  id String @id
+
+  label Label[]
+}
+
+model Label {
+  id String @id
+
+  todo Todo[]
+}
