@@ -1,12 +1,12 @@
 import { createClient } from "redis";
 import express from "express";
-import { tokenBucketRatelimiter } from "./token-bucket";
+import { rateLimit } from "./redis-ratelimit";
 
 const app = express();
 const PORT = 3000;
 app.use(express.json());
 
-app.get("/", tokenBucketRatelimiter(), (req, res) => {
+app.get("/", rateLimit(5, 10), (req, res) => {
   res.send("hello");
 });
 
