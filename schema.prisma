@@ -7,5 +7,5 @@ model Todo {
 model Label {
   id String @id
 
-  todo Todo[]
+  todo     Todo[]
 }
